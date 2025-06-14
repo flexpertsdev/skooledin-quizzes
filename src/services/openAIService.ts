@@ -27,17 +27,30 @@ export const processWorksheetImage = async (
     let data;
 
     if (file.type === 'application/pdf') {
-      // Call Netlify function for PDFs
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          image: base64,
-          fileType: file.type 
-        })
-      });
+      // Call Netlify function for PDFs with extended timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 second timeout
+      
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            image: base64,
+            fileType: file.type 
+          }),
+          signal: controller.signal
+        });
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          throw new Error('PDF processing timed out. Try a smaller file.');
+        }
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
+      }
       
       data = await response.json();
       

@@ -1,6 +1,9 @@
 const pdfParse = require('pdf-parse');
 
 exports.handler = async (event, context) => {
+  // Extend function timeout
+  context.callbackWaitsForEmptyEventLoop = false;
+  
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -17,8 +20,11 @@ exports.handler = async (event, context) => {
     };
   }
 
+  console.log('Function invoked, method:', event.httpMethod);
+
   try {
     const { image, fileType } = JSON.parse(event.body);
+    console.log('Processing file type:', fileType);
     
     // Get OpenAI API key from environment
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -38,9 +44,15 @@ exports.handler = async (event, context) => {
       
       try {
         const data = await pdfParse(pdfBuffer);
-        const pdfText = data.text;
+        let pdfText = data.text;
         
         console.log('PDF text extracted, length:', pdfText.length);
+        
+        // Limit text length to prevent token overflow
+        if (pdfText.length > 8000) {
+          console.log('PDF text too long, truncating to 8000 characters');
+          pdfText = pdfText.substring(0, 8000) + '... [truncated]';
+        }
         
         // Use text-based prompt for PDF content
         openAIMessages = [
