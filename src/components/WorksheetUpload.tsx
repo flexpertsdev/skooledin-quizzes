@@ -56,6 +56,12 @@ const WorksheetUpload = () => {
       return;
     }
     
+    // Check if file is PDF
+    if (file.type === 'application/pdf') {
+      toast.error("PDF processing is coming soon! Please upload an image (JPG or PNG) for now.");
+      return;
+    }
+    
     setIsUploading(true);
     const cleanupInterval = simulateProcessingStages();
     
@@ -245,7 +251,7 @@ const WorksheetUpload = () => {
           <input
             id="file-upload"
             type="file"
-            accept="image/*"
+            accept="image/*,.pdf"
             onChange={handleFileChange}
             className="hidden"
           />
@@ -265,7 +271,7 @@ const WorksheetUpload = () => {
                 Tap to upload
               </p>
               <p className="text-sm text-gray-500">
-                JPG, PNG or PDF up to 10MB
+                JPG or PNG up to 10MB (PDF coming soon)
               </p>
             </>
           )}
