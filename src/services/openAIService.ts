@@ -10,7 +10,7 @@ export const processWorksheetImage = async (
     // Show processing toast
     const toastId = toast.loading("Processing worksheet...");
 
-    // Convert the image to base64
+    // Convert the file to base64
     const base64 = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result as string);
@@ -18,9 +18,12 @@ export const processWorksheetImage = async (
       reader.readAsDataURL(file);
     });
 
-    // Call our Supabase Edge Function
+    // Call our Supabase Edge Function with file type
     const { data, error } = await supabase.functions.invoke('process-worksheet', {
-      body: { image: base64 }
+      body: { 
+        image: base64,
+        fileType: file.type 
+      }
     });
 
     if (error) {

@@ -52,13 +52,7 @@ const WorksheetUpload = () => {
     e.preventDefault();
     
     if (!file) {
-      toast.error("Please upload a worksheet image");
-      return;
-    }
-    
-    // Check if file is PDF
-    if (file.type === 'application/pdf') {
-      toast.error("PDF processing is coming soon! Please upload an image (JPG or PNG) for now.");
+      toast.error("Please upload a worksheet file");
       return;
     }
     
@@ -69,7 +63,7 @@ const WorksheetUpload = () => {
     clearStorage();
     
     try {
-      // Process the worksheet image using OpenAI
+      // Process the worksheet (now supports both images and PDFs)
       const result = await processWorksheetImage(file);
       
       if (result.error || !result.worksheet) {
@@ -271,7 +265,7 @@ const WorksheetUpload = () => {
                 Tap to upload
               </p>
               <p className="text-sm text-gray-500">
-                JPG or PNG up to 10MB (PDF coming soon)
+                JPG, PNG or PDF up to 10MB
               </p>
             </>
           )}
