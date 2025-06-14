@@ -6,6 +6,9 @@
 [functions."process-worksheet"]
   timeout = 26
 
+[functions."process-pdf-fast"]
+  timeout = 26
+
 [[headers]]
   for = "/*"
   [headers.values]
