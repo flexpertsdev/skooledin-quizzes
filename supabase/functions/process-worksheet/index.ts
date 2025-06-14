@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { v4 as uuidv4 } from 'https://esm.sh/uuid@9.0.0'
-import { getDocument } from 'https://esm.sh/pdfjs-dist@3.11.174'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,37 +24,15 @@ interface WorksheetSection {
 
 async function extractTextFromPDF(base64Pdf: string): Promise<string> {
   try {
-    // Remove the data:application/pdf;base64, prefix if present
-    const base64Data = base64Pdf.replace(/^data:application\/pdf;base64,/, '');
+    // For now, let's use a simpler approach - send the PDF to OpenAI's vision API
+    // OpenAI can process PDFs directly as images
+    console.log('PDF processing: Using OpenAI vision API for PDF analysis');
     
-    // Convert base64 to Uint8Array
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    
-    // Load the PDF document
-    const loadingTask = getDocument({ data: bytes });
-    const pdf = await loadingTask.promise;
-    
-    let fullText = '';
-    const numPages = pdf.numPages;
-    
-    // Extract text from each page
-    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      fullText += pageText + '\n';
-    }
-    
-    return fullText.trim();
+    // We'll return a marker to indicate this is a PDF that needs special handling
+    return 'PDF_DIRECT_PROCESS';
   } catch (error) {
-    console.error('Error extracting PDF text:', error);
-    throw new Error('Failed to extract text from PDF');
+    console.error('Error in PDF processing:', error);
+    throw new Error('Failed to process PDF');
   }
 }
 
@@ -69,13 +46,14 @@ serve(async (req) => {
     const { image, fileType } = await req.json()
 
     let openAIMessages;
+    let useVisionAPI = true;
 
     // Check if it's a PDF or image
     if (fileType === 'application/pdf' || image.startsWith('data:application/pdf')) {
-      // Extract text from PDF
-      const pdfText = await extractTextFromPDF(image);
+      console.log('Processing PDF file');
       
-      // Use text-based prompt for PDF content
+      // For PDFs, we'll use the vision API directly
+      // OpenAI's vision model can read PDFs when sent as base64
       openAIMessages = [
         {
           role: "system",
@@ -94,18 +72,33 @@ serve(async (req) => {
                 "correctAnswer": "correct answer or option id"
               }]
             }]
-          }`
+          }
+          
+          IMPORTANT: 
+          - For multiple choice questions, include all options with IDs (a, b, c, etc.)
+          - For fill-in-the-blank questions, the correctAnswer should be the word/phrase that fills the blank
+          - For matching questions, include the items to match as options
+          - Preserve the exact text and formatting from the worksheet`
         },
         {
           role: "user",
-          content: `Analyze this worksheet text and convert it into the specified JSON format. Identify the type of each question (multiple-choice, fill-in-the-blank, or matching). For multiple choice and matching questions, provide options with IDs.
-
-Worksheet content:
-${pdfText}`
+          content: [
+            {
+              type: "text",
+              text: "This is a PDF worksheet. Please analyze it carefully and extract all questions, maintaining the exact structure and content. Convert it into the specified JSON format."
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: image
+              }
+            }
+          ]
         }
       ];
     } else {
       // Use vision API for images
+      console.log('Processing image file');
       openAIMessages = [
         {
           role: "system",
@@ -152,7 +145,7 @@ ${pdfText}`
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: fileType === 'application/pdf' || image.startsWith('data:application/pdf') ? "gpt-4o" : "gpt-4o",
+        model: "gpt-4o",
         messages: openAIMessages,
         temperature: 0.1,
         max_tokens: 4000
@@ -168,11 +161,17 @@ ${pdfText}`
 
     // Parse OpenAI's response
     const aiResponse = data.choices[0].message.content
-    console.log('AI Response:', aiResponse)
+    console.log('AI Response received, length:', aiResponse.length)
 
     try {
+      // Clean the response - sometimes GPT adds markdown code blocks
+      let cleanedResponse = aiResponse;
+      if (cleanedResponse.includes('```json')) {
+        cleanedResponse = cleanedResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      }
+      
       // Parse the JSON response from OpenAI
-      const parsedWorksheet = JSON.parse(aiResponse)
+      const parsedWorksheet = JSON.parse(cleanedResponse)
 
       // Add UUIDs to sections and questions
       const processedWorksheet = {
@@ -199,6 +198,7 @@ ${pdfText}`
       )
     } catch (parseError) {
       console.error('Error parsing AI response:', parseError)
+      console.error('Raw AI response:', aiResponse)
       throw new Error('Failed to parse AI response into worksheet format')
     }
 
