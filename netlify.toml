@@ -3,8 +3,7 @@
   publish = "dist"
   functions = "netlify/functions"
 
-[functions]
-  # Increase function timeout to 26 seconds (max for free tier)
+[functions."process-worksheet"]
   timeout = 26
 
 [[headers]]

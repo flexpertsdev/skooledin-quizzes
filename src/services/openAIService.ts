@@ -20,7 +20,7 @@ export const processWorksheetImage = async (
 
     // Determine which endpoint to use
     const endpoint = file.type === 'application/pdf' 
-      ? '/.netlify/functions/process-worksheet'  // Use Netlify function for PDFs
+      ? '/.netlify/functions/process-worksheet-simple'  // Use simple Netlify function for PDFs (temporarily)
       : 'process-worksheet';  // Use Supabase for images
 
     let response;
