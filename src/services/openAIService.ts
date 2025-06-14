@@ -18,22 +18,48 @@ export const processWorksheetImage = async (
       reader.readAsDataURL(file);
     });
 
-    // Call our Supabase Edge Function with file type
-    const { data, error } = await supabase.functions.invoke('process-worksheet', {
-      body: { 
-        image: base64,
-        fileType: file.type 
-      }
-    });
+    // Determine which endpoint to use
+    const endpoint = file.type === 'application/pdf' 
+      ? '/.netlify/functions/process-worksheet'  // Use Netlify function for PDFs
+      : 'process-worksheet';  // Use Supabase for images
 
-    if (error) {
-      toast.error("Failed to process worksheet", {
-        id: toastId,
-        description: error.message
+    let response;
+    let data;
+
+    if (file.type === 'application/pdf') {
+      // Call Netlify function for PDFs
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          image: base64,
+          fileType: file.type 
+        })
       });
-      throw error;
+      
+      data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process PDF');
+      }
+    } else {
+      // Call Supabase Edge Function for images
+      const result = await supabase.functions.invoke('process-worksheet', {
+        body: { 
+          image: base64,
+          fileType: file.type 
+        }
+      });
+      
+      if (result.error) {
+        throw result.error;
+      }
+      
+      data = result.data;
     }
-    
+
     if (!data.worksheet) {
       toast.error("Could not process worksheet", {
         id: toastId,
@@ -53,9 +79,12 @@ export const processWorksheetImage = async (
     return { worksheet: data.worksheet };
   } catch (error) {
     console.error("Error processing worksheet:", error);
+    toast.error("Failed to process worksheet", {
+      description: error.message
+    });
     return { 
       worksheet: null, 
-      error: "There was an error processing your worksheet. Please try again." 
+      error: error.message || "There was an error processing your worksheet. Please try again." 
     };
   }
 };
